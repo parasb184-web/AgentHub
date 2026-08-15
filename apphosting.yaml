@@ -1,0 +1,17 @@
+# Firebase App Hosting configuration for Agent Hub.
+# Add public Firebase values and non-secret URLs in the Firebase console.
+# Console values override this file, which makes it a good place to keep stable
+# runtime settings and secret references under version control.
+
+runConfig:
+  maxInstances: 5
+
+env:
+  - variable: ANTHROPIC_API_KEY
+    secret: anthropic-api-key
+
+  - variable: UPSTASH_VECTOR_REST_TOKEN
+    secret: upstash-vector-rest-token
+
+  - variable: UPSTASH_REDIS_REST_TOKEN
+    secret: upstash-redis-rest-token
