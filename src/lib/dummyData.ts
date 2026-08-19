@@ -1,8 +1,9 @@
 import { Agent } from "./types";
+import { EXTRA_AGENTS } from "./generatedAgents";
 
 const mockTimestamp = { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 };
 
-export const MOCK_AGENTS: Agent[] = [
+const BASE_AGENTS: Agent[] = [
   {
     id: "mock-code-reviewer-1",
     name: "Pull Request Reviewer",
@@ -11,7 +12,7 @@ export const MOCK_AGENTS: Agent[] = [
     creatorUsername: "codeaudit",
     endpointUrl: "https://api.agenthub.dev/v1/run/mock-code-reviewer-1",
     capabilityTags: ["code-review", "testing", "security"],
-    supportedLanguages: ["typescript", "python", "go", "Rust"],
+    supportedLanguages: ["typescript", "python", "go", "rust"],
     latencyMs: 1200,
     costPerCall: 0.15,
     inputSchema: { type: "object", properties: { repoUrl: { type: "string" }, prNumber: { type: "number" } } },
@@ -436,3 +437,6 @@ export const MOCK_AGENTS: Agent[] = [
     rateLimit: 1000
   }
 ];
+
+/** Full marketplace catalog: 16 hand-written + 5 live + 80 generated = 101. */
+export const MOCK_AGENTS: Agent[] = [...BASE_AGENTS, ...EXTRA_AGENTS];
