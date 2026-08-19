@@ -31,21 +31,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        document.cookie = "auth-session=true; path=/; max-age=86400;";
-        const docRef = doc(db, "users", currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setGithubProfile(docSnap.data());
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (currentUser) => {
+        setUser(currentUser);
+        if (currentUser) {
+          document.cookie = "auth-session=true; path=/; max-age=86400;";
+          try {
+            const docRef = doc(db, "users", currentUser.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              setGithubProfile(docSnap.data());
+            }
+          } catch (e) {
+            console.warn("Could not load profile from Firestore", e);
+          }
+        } else {
+          document.cookie = "auth-session=; path=/; max-age=0;";
+          setGithubProfile(null);
         }
-      } else {
-        document.cookie = "auth-session=; path=/; max-age=0;";
-        setGithubProfile(null);
+        setLoading(false);
+      },
+      (error) => {
+        // Invalid or rejected credentials must not surface as an unhandled rejection.
+        console.warn("Firebase auth unavailable, continuing signed out:", error?.message);
+        setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
 
     return unsubscribe;
   }, []);

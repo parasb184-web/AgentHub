@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Activity, ArrowRight, Github, ShieldCheck, Sparkles, Workflow } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
+import { isFirebaseConfigured } from "@/lib/firebase";
 
 const highlights = [
   {
@@ -97,12 +98,25 @@ function LoginPageContent() {
 
                 <Button
                   onClick={handleSignIn}
-                  disabled={loading}
+                  disabled={loading || !isFirebaseConfigured}
                   className="mt-8 h-12 w-full rounded-xl bg-[#e74c3c] text-base font-semibold text-white hover:bg-[#ff5645]"
                 >
                   <Github className="mr-2 h-5 w-5" />
-                  {loading ? "Checking session..." : "Continue with GitHub"}
+                  {!isFirebaseConfigured
+                    ? "Sign-in unavailable in demo mode"
+                    : loading
+                      ? "Checking session..."
+                      : "Continue with GitHub"}
                 </Button>
+
+                {!isFirebaseConfigured && (
+                  <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                    Running without Firebase credentials, so sign-in is disabled. Browsing the
+                    agent catalog and sandbox previews still works. To enable GitHub sign-in, add
+                    your <code className="font-mono text-[13px]">NEXT_PUBLIC_FIREBASE_*</code> values
+                    to <code className="font-mono text-[13px]">.env.local</code> and restart the dev server.
+                  </p>
+                )}
 
                 <div className="mt-6 flex items-center justify-between border-t border-black/10 pt-6 text-sm text-[#64748b]">
                   <span>Developer access only</span>

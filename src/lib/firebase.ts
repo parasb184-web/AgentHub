@@ -2,6 +2,15 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GithubAuthProvider } from "firebase/auth";
 import { getFirestore, initializeFirestore, memoryLocalCache } from "firebase/firestore";
 
+/**
+ * True only when real credentials are present. `getAuth()` succeeds locally even
+ * with a placeholder key and fails later on its first network call, so guarding
+ * on the config up front is the only way to keep Auth from throwing.
+ */
+export const isFirebaseConfigured = Boolean(
+  process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+);
+
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "mock_key_for_build",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "mock.firebaseapp.com",
@@ -14,10 +23,18 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 let auth: ReturnType<typeof getAuth> | any = null;
-try {
-  auth = getAuth(app);
-} catch (e) {
-  console.warn("Firebase auth not configured properly:", e);
+if (isFirebaseConfigured) {
+  try {
+    auth = getAuth(app);
+  } catch (e) {
+    console.warn("Firebase auth not configured properly:", e);
+  }
+} else if (typeof window !== "undefined") {
+  console.info(
+    "[AgentHub] Firebase credentials not set - running in demo mode. " +
+      "Sign-in is disabled; the catalog is served from local data. " +
+      "Add NEXT_PUBLIC_FIREBASE_* to .env.local to enable auth."
+  );
 }
 
 const db = (() => {
