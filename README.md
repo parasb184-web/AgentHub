@@ -55,11 +55,17 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-> **It runs without any credentials.** Every client falls back to a mock value when its environment variable is missing, so the UI, routing, and static content all work on a clean checkout. What you lose is live data: Firestore reads fail and drop into offline mode, and the AI routes have no key to call. `/api/activity` in particular will hang for roughly 60 seconds without real Firebase credentials, because its seeding writes queue offline instead of failing fast.
+> **It runs without any credentials.** With no `.env.local` the app starts in demo mode: the full 101-agent catalog, filters, search, and sandbox previews all work from local data. Sign-in is disabled and `/dashboard`, `/publish`, and live sandbox execution stay unavailable until you add Firebase credentials.
 
 ### Environment variables
 
-Create `.env.local` in the project root:
+Copy the template and fill in what you need:
+
+```bash
+cp .env.example .env.local
+```
+
+The full set:
 
 ```dotenv
 # Firebase — safe to expose to the browser
@@ -83,7 +89,7 @@ UPSTASH_REDIS_REST_TOKEN=your-upstash-redis-token
 
 | Variable | Required for | Without it |
 | --- | --- | --- |
-| `NEXT_PUBLIC_FIREBASE_*` | Auth and all Firestore data | Falls back to `mock-project`; Firestore goes offline |
+| `NEXT_PUBLIC_FIREBASE_*` | Auth and all Firestore data | App runs in demo mode: sign-in disabled, catalog served locally |
 | `ANTHROPIC_API_KEY` | Repo scan analysis, search reasoning | Claude calls fail; fallback heuristics are used |
 | `GEMINI_API_KEY` | `/api/ai-news` digest | News section returns empty |
 | `GITHUB_TOKEN` | `/scan`, `/api/github-scan` | Unauthenticated GitHub rate limit (60 req/hr) |
@@ -148,7 +154,7 @@ src/
 | `/api/gap-detect` | POST | Find missing agent categories |
 | `/api/upsert-vector` | POST | Index an agent into Upstash Vector |
 | `/api/trending-agents` | GET | Trending list for the homepage |
-| `/api/activity` | GET, POST | Live activity feed (seeds on first call) |
+| `/api/activity` | GET, POST | Live activity feed (seeds on first call; serves a local feed in demo mode) |
 | `/api/ai-news` | GET | Gemini-generated AI news digest |
 | `/api/badge/[owner]/[repo]` | GET | SVG badge showing a repo's agent count |
 | `/api/og` | GET | Dynamic Open Graph images |

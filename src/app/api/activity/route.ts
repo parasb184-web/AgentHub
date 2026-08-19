@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { addDoc, collection, getDocs, limit, orderBy, query, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, isFirebaseConfigured } from "@/lib/firebase";
 
 const seedEvents = [
   { agentName: "PR Review Agent", repoType: "Next.js app", action: "started using" },
@@ -39,7 +39,32 @@ const seedIfEmpty = async () => {
   await Promise.all(entries);
 };
 
+/**
+ * Demo-mode feed. Without credentials the Firestore client queues writes offline
+ * instead of rejecting, so seeding 40 documents blocks for ~60s before the route
+ * responds. Serve a local feed instead and never touch Firestore.
+ */
+const buildLocalFeed = () => {
+  const now = Date.now();
+  return Array.from({ length: 20 }).map((_, index) => {
+    const template = seedEvents[index % seedEvents.length];
+    const offsetMs = Math.floor((index / 19) * 6 * 60 * 60 * 1000);
+    return {
+      id: `local-${index}`,
+      agentName: template.agentName,
+      repoType: template.repoType,
+      eventType: template.action,
+      timestamp: Timestamp.fromDate(new Date(now - offsetMs)),
+      isSeeded: true,
+    };
+  });
+};
+
 export async function GET(request: Request) {
+  if (!isFirebaseConfigured) {
+    return NextResponse.json(buildLocalFeed());
+  }
+
   try {
     await seedIfEmpty();
 
@@ -66,6 +91,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!isFirebaseConfigured) {
+    return NextResponse.json(
+      { error: "Activity feed is read-only in demo mode. Add Firebase credentials to persist events." },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await request.json();
     if (!body.agentName || !body.repoType || !body.eventType) {
