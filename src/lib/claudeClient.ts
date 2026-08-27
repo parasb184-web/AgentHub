@@ -3,7 +3,10 @@ import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import crypto from 'crypto';
 
-// Provide a mock key if it's missing during build to prevent crashing
+// A placeholder key keeps builds working without credentials; isClaudeConfigured
+// lets callers fail fast in demo mode instead of waiting on a doomed request.
+export const isClaudeConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
+
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY || "mock" });
 
 export async function claudeAnalyze(
@@ -25,13 +28,23 @@ export async function claudeAnalyze(
     console.warn("Firestore cache read failed, falling back to API", e);
   }
 
+  if (!isClaudeConfigured) {
+    throw new Error("ANTHROPIC_API_KEY is not set - Claude analysis unavailable in demo mode.");
+  }
+
   const message = await client.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 1024,
+    model: 'claude-opus-5',
+    max_tokens: 16000,
+    thinking: { type: 'adaptive' },
     messages: [{ role: 'user', content: prompt }]
   });
 
-  const result = message.content[0].type === 'text' ? message.content[0].text : '';
+  // `content` is a discriminated union and adaptive thinking puts a thinking
+  // block first, so collect the text blocks rather than indexing content[0].
+  const result = message.content
+    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+    .map((block) => block.text)
+    .join('');
 
   try {
     await setDoc(cacheRef, { result, createdAt: Timestamp.now(), prompt: cacheKey });

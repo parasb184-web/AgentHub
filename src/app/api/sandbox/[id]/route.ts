@@ -22,10 +22,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   try {
     const authHeader = req.headers.get("Authorization");
-    // For local dev ease, we'll allow passing without auth if it's the demo-user UI. 
-    // Wait, the prompt strictly says: "Add middleware in app/api to validate Bearer token on all sandbox calls". 
-    // Since UI sandbox calls this, the UI needs to send a dev token or we make it strictly required.
-    // Let's make it strictly required.
+    // A Bearer token is required on every sandbox call, including from the UI --
+    // the sandbox can dispatch real outbound requests, so it is never anonymous.
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ success: false, error: "Missing Bearer token. Create one in your Dashboard." }, { status: 401 });
     }

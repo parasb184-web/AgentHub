@@ -1,12 +1,30 @@
-import { db } from "./firebase";
+import { db, isFirebaseConfigured } from "./firebase";
 import { collection, doc, getDocs, getDoc, setDoc, updateDoc, addDoc, query, where, orderBy, Timestamp, runTransaction } from "firebase/firestore";
 import { Agent, AgentCall, AgentReview } from "./types";
 import { MOCK_AGENTS } from "./dummyData";
 
+/**
+ * Firestore does not reject when the backend is unreachable - it retries in the
+ * background, so an awaited read can hang forever and a `catch` never fires.
+ * Every UI-facing read below is bounded so the caller always settles.
+ */
+const FIRESTORE_TIMEOUT_MS = 6000;
+
+const withTimeout = <T>(promise: Promise<T>, ms = FIRESTORE_TIMEOUT_MS): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Firestore request timed out")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
+};
+
 export const getAgents = async (): Promise<Agent[]> => {
+  // Demo mode: never touch Firestore, just serve the local catalog.
+  if (!isFirebaseConfigured) return MOCK_AGENTS;
+
   try {
     const q = query(collection(db, "agents"), where("status", "==", "active"));
-    const snapshot = await getDocs(q);
+    const snapshot = await withTimeout(getDocs(q));
     const firestoreAgents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Agent));
     const mockIds = new Set(MOCK_AGENTS.map(a => a.id));
     const uniqueFirestore = firestoreAgents.filter(a => !mockIds.has(a.id));
@@ -21,9 +39,11 @@ export const getAgentById = async (id: string): Promise<Agent | null> => {
   const mockAgent = MOCK_AGENTS.find(a => a.id === id);
   if (mockAgent) return mockAgent;
 
+  if (!isFirebaseConfigured) return null;
+
   try {
     const docRef = doc(db, "agents", id);
-    const docSnap = await getDoc(docRef);
+    const docSnap = await withTimeout(getDoc(docRef));
     if (!docSnap.exists()) return null;
     return { id: docSnap.id, ...docSnap.data() } as Agent;
   } catch (e) {
@@ -33,9 +53,16 @@ export const getAgentById = async (id: string): Promise<Agent | null> => {
 };
 
 export const getAgentReviews = async (agentId: string): Promise<AgentReview[]> => {
-  const q = query(collection(db, "agent_reviews"), where("agentId", "==", agentId), orderBy("createdAt", "desc"));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AgentReview));
+  if (!isFirebaseConfigured) return [];
+
+  try {
+    const q = query(collection(db, "agent_reviews"), where("agentId", "==", agentId), orderBy("createdAt", "desc"));
+    const snapshot = await withTimeout(getDocs(q));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AgentReview));
+  } catch (e) {
+    console.warn("Firestore getAgentReviews failed", e);
+    return [];
+  }
 };
 
 export const createAgent = async (agent: Omit<Agent, "id" | "createdAt" | "updatedAt">): Promise<string> => {
@@ -48,13 +75,20 @@ export const createAgent = async (agent: Omit<Agent, "id" | "createdAt" | "updat
 };
 
 export const checkHasRunSandbox = async (agentId: string, userId: string): Promise<boolean> => {
-  const q = query(
-    collection(db, "agent_calls"),
-    where("agentId", "==", agentId),
-    where("userId", "==", userId)
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.length > 0;
+  if (!isFirebaseConfigured) return false;
+
+  try {
+    const q = query(
+      collection(db, "agent_calls"),
+      where("agentId", "==", agentId),
+      where("userId", "==", userId)
+    );
+    const snapshot = await withTimeout(getDocs(q));
+    return snapshot.docs.length > 0;
+  } catch (e) {
+    console.warn("Firestore checkHasRunSandbox failed", e);
+    return false;
+  }
 };
 
 export const addReview = async (agentId: string, userId: string, rating: number, body: string): Promise<void> => {
@@ -108,11 +142,18 @@ export const submitCopyrightClaim = async (claim: {
 };
 
 export const hasCopyrightClaim = async (agentId: string, userId: string): Promise<boolean> => {
-  const q = query(
-    collection(db, "copyright_claims"),
-    where("agentId", "==", agentId),
-    where("reporterId", "==", userId)
-  );
-  const snapshot = await getDocs(q);
-  return !snapshot.empty;
+  if (!isFirebaseConfigured) return false;
+
+  try {
+    const q = query(
+      collection(db, "copyright_claims"),
+      where("agentId", "==", agentId),
+      where("reporterId", "==", userId)
+    );
+    const snapshot = await withTimeout(getDocs(q));
+    return !snapshot.empty;
+  } catch (e) {
+    console.warn("Firestore hasCopyrightClaim failed", e);
+    return false;
+  }
 };

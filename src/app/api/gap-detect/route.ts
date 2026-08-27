@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { queryNearestAgents } from "@/lib/vectorSearch";
 import { db } from "@/lib/firebase";
+import { MOCK_AGENTS } from "@/lib/dummyData";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 const IMPACT_STRINGS: Record<string, string> = {
@@ -19,13 +20,13 @@ export async function POST(req: Request) {
 
     const searchString = `${repoLanguages?.join(" ")} ${repoTags?.join(" ")}`;
 
-    // Feature 8: Find 5 similar repos (mocking as querying agents vector store temporarily if repo_scans doesn't exist yet, wait, prompt says "query Upstash Vector: find top 5 most similar repos already stored. (repos are embedded as "language1 language2 tag1 tag2" strings)")
-    // Wait, the prompt implies repos are already stored. Since we haven't stored repos yet, we should embed the searchString and just mock an Upstash Query and filter manually.
+    // Nearest neighbours come from the agent index rather than a dedicated repo
+    // index: repos are only embedded once they have been scanned, so a fresh
+    // deployment has nothing to match against. Agent embeddings are a usable
+    // stand-in because both are embedded as "language language tag tag" strings.
     const nearestRepos = await queryNearestAgents(searchString, 5);
 
-    // Mock the union of agent categories for now since Upstash contains agents not repos
-    // Actually, prompt: "For each similar repo, fetch its matched agent categories from Firestore repo_scans collection. Take the union..."
-    // Since we don't have this fully populated initially, we'll implement the union logic as requested:
+    // Union of every capability tag seen across previously scanned repos.
     const unionCategories = new Set<string>();
 
     const scansCol = collection(db, "repo_scans");
@@ -55,8 +56,19 @@ export async function POST(req: Request) {
     for (const gap of gaps) {
       if (gapAgents.length >= 3) break; // Limit to 3 gaps shown to user
       const q = query(agentCols, where("capabilityTags", "array-contains", gap));
-      const snaps = await getDocs(q);
-      const agentsForCat = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+      let agentsForCat: any[] = [];
+      try {
+        const snaps = await getDocs(q);
+        agentsForCat = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch {
+        agentsForCat = [];
+      }
+
+      // Firestore is empty or unreachable in demo mode, so fall back to the
+      // local catalog rather than returning an empty card to the user.
+      if (agentsForCat.length === 0) {
+        agentsForCat = MOCK_AGENTS.filter(a => a.capabilityTags.includes(gap));
+      }
 
       if (agentsForCat.length > 0) {
         gapAgents.push({
