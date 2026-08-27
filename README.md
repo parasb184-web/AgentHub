@@ -148,7 +148,7 @@ Data reads follow the same fall-back shape — `getAgents()` merges Firestore re
 | Vector search | Upstash Vector |
 | Embeddings | `@xenova/transformers` (`all-MiniLM-L6-v2`) — runs locally, **no embedding API needed** |
 | Rate limiting | Upstash Redis via `@upstash/ratelimit` |
-| AI | Anthropic Claude (scan analysis, search reasoning), Google Gemini `gemini-2.0-flash` (news digest) |
+| AI | Anthropic Claude `claude-opus-5` with adaptive thinking (scan analysis, search reasoning), Google Gemini `gemini-2.0-flash` (news digest) |
 | State & fetching | Zustand, TanStack Query, nuqs |
 | Canvas & charts | React Flow, Recharts, Monaco Editor, Shiki |
 
@@ -224,12 +224,12 @@ src/
 | Route | Method | Purpose |
 | --- | --- | --- |
 | `/api/agents` | `GET` `POST` | List and create agents |
-| `/api/agents/[id]` | `GET` `PATCH` | Read and update a single agent |
+| `/api/agents/[id]` | `GET` | Read a single agent |
 | `/api/chains` | `GET` `POST` | List and create workflows |
-| `/api/chains/[id]` | `GET` `PATCH` `DELETE` | Manage one workflow |
+| `/api/chains/[id]` | `GET` `POST` | Read and update one workflow |
 | `/api/sandbox/[id]` | `POST` | Execute an agent — **requires `Authorization: Bearer <key>`**, rate limited, 10s timeout |
-| `/api/keys` | `GET` `POST` `PATCH` | Issue, list, and revoke API keys (SHA-256 hashed at rest) |
-| `/api/search` | `GET` | Semantic agent search |
+| `/api/keys` | `GET` `POST` `PUT` | Issue, list, and revoke API keys (SHA-256 hashed at rest) |
+| `/api/search` | `POST` | Semantic agent search |
 | `/api/github-scan` | `POST` | Analyze a repository |
 | `/api/gap-detect` | `POST` | Find missing agent categories |
 | `/api/upsert-vector` | `POST` | Index an agent into Upstash Vector |
@@ -298,7 +298,7 @@ A free-plan web service is pre-declared with all variables marked `sync: false`;
 ## Known limitations
 
 - **Live sandbox execution needs Firebase.** `/api/sandbox/[id]` validates the Bearer token against the `api_keys` collection *before* dispatching, so even the five live agents return 403 until Firebase is configured and a key is issued.
-- **`claudeClient.ts` pins an older model** (`claude-3-5-sonnet-20241022`). Worth revisiting.
+- **Claude calls use adaptive thinking**, which makes a scan slower than a plain completion. If you deploy somewhere with a short function timeout (Vercel Hobby caps at 10s), lower it with `output_config: { effort: "low" }` in [`claudeClient.ts`](./src/lib/claudeClient.ts) or move the call to a background job.
 - **`/api/gap-detect` is partially stubbed** — it queries the agent vector index rather than a dedicated repo index, since `repo_scans` starts empty.
 - **No automated test suite yet.** `npm run lint` and `tsc --noEmit` are the current gates.
 
