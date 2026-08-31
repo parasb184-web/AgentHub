@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
+import { geminiAnalyze, isGeminiConfigured } from './geminiClient';
 import crypto from 'crypto';
 
 // A placeholder key keeps builds working without credentials; isClaudeConfigured
@@ -28,8 +29,15 @@ export async function claudeAnalyze(
     console.warn("Firestore cache read failed, falling back to API", e);
   }
 
+  // Anthropic is optional. With no ANTHROPIC_API_KEY but a Gemini key present,
+  // run the same prompt through Gemini so these features still work.
   if (!isClaudeConfigured) {
-    throw new Error("ANTHROPIC_API_KEY is not set - Claude analysis unavailable in demo mode.");
+    if (isGeminiConfigured) {
+      return geminiAnalyze(prompt, cacheKey, ttlHours);
+    }
+    throw new Error(
+      "Neither ANTHROPIC_API_KEY nor GEMINI_API_KEY is set - AI analysis unavailable."
+    );
   }
 
   const message = await client.messages.create({
