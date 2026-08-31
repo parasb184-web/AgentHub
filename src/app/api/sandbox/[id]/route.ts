@@ -5,6 +5,10 @@ import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
 import crypto from "crypto";
 
+// Vercel caps serverless functions at 10s by default; these call out to
+// Gemini, GitHub or a third-party agent endpoint and need longer.
+export const maxDuration = 60;
+
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL || "https://mock.upstash.io",
   token: process.env.UPSTASH_REDIS_REST_TOKEN || "mock"

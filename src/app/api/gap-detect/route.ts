@@ -4,6 +4,10 @@ import { db } from "@/lib/firebase";
 import { MOCK_AGENTS } from "@/lib/dummyData";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
+// Vercel caps serverless functions at 10s by default; these call out to
+// Gemini, GitHub or a third-party agent endpoint and need longer.
+export const maxDuration = 60;
+
 const IMPACT_STRINGS: Record<string, string> = {
   "code-review": "Teams save 3–4 hrs/week on manual PR reviews",
   "test-writing": "Increases test coverage by 40% in first month",

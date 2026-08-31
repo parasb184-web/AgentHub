@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { AINewsFeedItem, AINewsResponse, FALLBACK_AI_NEWS } from "@/lib/homepageFeed";
 
+// Vercel caps serverless functions at 10s by default; these call out to
+// Gemini, GitHub or a third-party agent endpoint and need longer.
+export const maxDuration = 60;
+
 const NEWS_URL =
   "https://news.google.com/rss/search?q=%22artificial+intelligence%22+OR+%22AI+agents%22+when%3A7d&hl=en-US&gl=US&ceid=US%3Aen";
 
