@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { collection, addDoc, Timestamp, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { getAgentById } from "@/lib/firestore";
+import { findWhere, insert, update } from "@/lib/serverDb";
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
 import crypto from "crypto";
@@ -31,16 +30,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const token = authHeader.split(" ")[1];
     const keyHash = crypto.createHash("sha256").update(token).digest("hex");
 
-    const q = query(collection(db, "api_keys"), where("keyHash", "==", keyHash), where("isActive", "==", true));
-    const snaps = await getDocs(q);
-    if (snaps.empty) {
+    const matches = await findWhere("api_keys", "keyHash", keyHash);
+    const apiKeyDoc = matches.find((k) => k.isActive === true);
+    if (!apiKeyDoc) {
       return NextResponse.json({ success: false, error: "Invalid or revoked API key" }, { status: 403 });
     }
-    const apiKeyDoc = snaps.docs[0];
-    const apiKeyData = apiKeyDoc.data();
-    await updateDoc(doc(db, "api_keys", apiKeyDoc.id), { lastUsedAt: Timestamp.now() });
 
-    const userId = apiKeyData.userId;
+    // Best-effort: a failed usage stamp must not block a valid call.
+    update("api_keys", apiKeyDoc.id, { lastUsedAt: Date.now() }).catch((e) =>
+      console.warn("Could not stamp lastUsedAt", e)
+    );
+
+    const userId = apiKeyDoc.userId as string;
 
     const inputPayload = await req.json();
     const { id } = await params;
@@ -104,18 +105,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     try {
-      const callsCol = collection(db, "agent_calls");
-      await addDoc(callsCol, {
+      await insert("agent_calls", {
         agentId: agent.id,
-        userId: userId,
+        userId,
         inputPayload,
         outputPayload: outputPayload || { error: errorStr },
         latencyMs,
         success,
-        timestamp: Timestamp.now()
+        timestampMs: Date.now()
       });
     } catch (logError) {
-      console.error("Failed to log call:", logError);
+      console.warn("Failed to log call:", logError);
     }
 
     if (!success) {

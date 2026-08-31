@@ -1,8 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from './firebase';
 import { geminiAnalyze, isGeminiConfigured } from './geminiClient';
-import crypto from 'crypto';
+import { readCache, writeCache } from './aiCache';
 
 // A placeholder key keeps builds working without credentials; isClaudeConfigured
 // lets callers fail fast in demo mode instead of waiting on a doomed request.
@@ -15,19 +13,8 @@ export async function claudeAnalyze(
   cacheKey: string,
   ttlHours: number = 24
 ): Promise<string> {
-  const hash = crypto.createHash('md5').update(cacheKey).digest('hex');
-  const cacheRef = doc(db, 'claude_cache', hash);
-
-  try {
-    const cached = await getDoc(cacheRef);
-    if (cached.exists()) {
-      const data = cached.data();
-      const ageHours = (Date.now() - (data.createdAt as Timestamp).toMillis()) / 3600000;
-      if (ageHours < ttlHours) return data.result;
-    }
-  } catch (e) {
-    console.warn("Firestore cache read failed, falling back to API", e);
-  }
+  const cached = await readCache('claude_cache', cacheKey, ttlHours);
+  if (cached) return cached;
 
   // Anthropic is optional. With no ANTHROPIC_API_KEY but a Gemini key present,
   // run the same prompt through Gemini so these features still work.
@@ -54,11 +41,7 @@ export async function claudeAnalyze(
     .map((block) => block.text)
     .join('');
 
-  try {
-    await setDoc(cacheRef, { result, createdAt: Timestamp.now(), prompt: cacheKey });
-  } catch (e) {
-    console.warn("Firestore cache write failed", e);
-  }
+  await writeCache('claude_cache', cacheKey, result);
 
   return result;
 }

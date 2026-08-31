@@ -1,7 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from './firebase';
-import crypto from 'crypto';
+import { readCache, writeCache } from './aiCache';
 
 export const isGeminiConfigured = Boolean(process.env.GEMINI_API_KEY);
 
@@ -20,29 +18,14 @@ export async function geminiAnalyze(
     throw new Error('GEMINI_API_KEY is not set - Gemini analysis unavailable.');
   }
 
-  const hash = crypto.createHash('md5').update(cacheKey).digest('hex');
-  const cacheRef = doc(db, 'gemini_cache', hash);
-
-  try {
-    const cached = await getDoc(cacheRef);
-    if (cached.exists()) {
-      const data = cached.data();
-      const ageHours = (Date.now() - (data.createdAt as Timestamp).toMillis()) / 3600000;
-      if (ageHours < ttlHours) return data.result;
-    }
-  } catch (e) {
-    console.warn("Firestore cache read failed, falling back to API", e);
-  }
+  const cached = await readCache('gemini_cache', cacheKey, ttlHours);
+  if (cached) return cached;
 
   const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
   const response = await model.generateContent(prompt);
   const result = response.response.text();
 
-  try {
-    await setDoc(cacheRef, { result, createdAt: Timestamp.now(), prompt: cacheKey });
-  } catch (e) {
-    console.warn("Firestore cache write failed", e);
-  }
+  await writeCache('gemini_cache', cacheKey, result);
 
   return result;
 }
