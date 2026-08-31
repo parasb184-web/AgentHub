@@ -8,6 +8,10 @@ import { getAgentById } from "@/lib/firestore";
 import { MOCK_AGENTS } from "@/lib/dummyData";
 import { Agent } from "@/lib/types";
 
+// Vercel caps serverless functions at 10s by default; these call out to
+// Gemini, GitHub or a third-party agent endpoint and need longer.
+export const maxDuration = 60;
+
 const SEARCH_SYNONYMS: Record<string, string[]> = {
   study: ["research", "analysis", "summarization", "education", "learning"],
   research: ["study", "analysis", "summarization", "data-extraction"],

@@ -148,7 +148,7 @@ Data reads follow the same fall-back shape — `getAgents()` merges Firestore re
 | Vector search | Upstash Vector |
 | Embeddings | `@xenova/transformers` (`all-MiniLM-L6-v2`) — runs locally, **no embedding API needed** |
 | Rate limiting | Upstash Redis via `@upstash/ratelimit` |
-| AI | Anthropic Claude `claude-opus-5` with adaptive thinking (scan analysis, search reasoning), Google Gemini `gemini-2.0-flash` (news digest) |
+| AI | Google Gemini `gemini-3.6-flash` (news digest, and scan/search when no Anthropic key is set); Anthropic Claude `claude-opus-5` with adaptive thinking when `ANTHROPIC_API_KEY` is present |
 | State & fetching | Zustand, TanStack Query, nuqs |
 | Canvas & charts | React Flow, Recharts, Monaco Editor, Shiki |
 
@@ -163,8 +163,8 @@ cp .env.example .env.local
 | Variable | Required for | Without it |
 | --- | --- | --- |
 | `NEXT_PUBLIC_FIREBASE_*` (×6) | Auth, all Firestore data | Demo mode: sign-in disabled, catalog served locally |
-| `ANTHROPIC_API_KEY` | Repo scan analysis, search reasoning | Claude calls fail; fallback heuristics used |
-| `GEMINI_API_KEY` | `/api/ai-news` digest | News section returns empty |
+| `ANTHROPIC_API_KEY` | Repo scan analysis, search reasoning | **Optional.** Falls back to Gemini when `GEMINI_API_KEY` is set |
+| `GEMINI_API_KEY` | AI news digest, plus scan/search when Anthropic is unset | Those features fall back to local heuristics |
 | `GITHUB_TOKEN` | `/scan`, `/api/github-scan` | Unauthenticated GitHub limit (60 req/hr vs 5000) |
 | `UPSTASH_VECTOR_*` | Semantic search, gap detection | Vector queries fail |
 | `UPSTASH_REDIS_*` | Sandbox rate limiting | Rate limiting is inert |

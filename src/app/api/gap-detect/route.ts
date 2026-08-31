@@ -4,6 +4,10 @@ import { db } from "@/lib/firebase";
 import { MOCK_AGENTS } from "@/lib/dummyData";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
+// Vercel caps serverless functions at 10s by default; these call out to
+// Gemini, GitHub or a third-party agent endpoint and need longer.
+export const maxDuration = 60;
+
 const IMPACT_STRINGS: Record<string, string> = {
   "code-review": "Teams save 3–4 hrs/week on manual PR reviews",
   "test-writing": "Increases test coverage by 40% in first month",
@@ -24,23 +28,35 @@ export async function POST(req: Request) {
     // index: repos are only embedded once they have been scanned, so a fresh
     // deployment has nothing to match against. Agent embeddings are a usable
     // stand-in because both are embedded as "language language tag tag" strings.
-    const nearestRepos = await queryNearestAgents(searchString, 5);
+    // Vector lookup is best-effort; Upstash may be unconfigured.
+    try {
+      await queryNearestAgents(searchString, 5);
+    } catch (e) {
+      console.warn("Vector similarity unavailable, continuing", e);
+    }
 
     // Union of every capability tag seen across previously scanned repos.
     const unionCategories = new Set<string>();
 
-    const scansCol = collection(db, "repo_scans");
-    const scansQuery = await getDocs(scansCol);
-    scansQuery.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.agentMatches) {
-        data.agentMatches.forEach((m: any) => {
-          if (m.capabilityTags) {
-            m.capabilityTags.forEach((t: string) => unionCategories.add(t));
-          }
-        });
-      }
-    });
+    // repo_scans may be empty, denied by rules, or unreachable. None of those
+    // should fail the request - the default gaps below still give the user
+    // something useful.
+    try {
+      const scansCol = collection(db, "repo_scans");
+      const scansQuery = await getDocs(scansCol);
+      scansQuery.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.agentMatches) {
+          data.agentMatches.forEach((m: any) => {
+            if (m.capabilityTags) {
+              m.capabilityTags.forEach((t: string) => unionCategories.add(t));
+            }
+          });
+        }
+      });
+    } catch (e) {
+      console.warn("repo_scans unavailable, using default gap categories", e);
+    }
 
     const currentCats = new Set<string>(currentCategories || []);
     const gaps = Array.from(unionCategories).filter(c => !currentCats.has(c));

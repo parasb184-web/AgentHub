@@ -6,6 +6,10 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import crypto from "crypto";
 
+// Vercel caps serverless functions at 10s by default; these call out to
+// Gemini, GitHub or a third-party agent endpoint and need longer.
+export const maxDuration = 60;
+
 interface GitHubIssueLabel {
   name: string;
 }
